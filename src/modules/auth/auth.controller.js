@@ -2,6 +2,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import Admin from "./auth.model.js";
 import { sendPasswordResetEmail, sendPasswordResetConfirmation } from "../../config/email.js";
+import path from "path";
 
 // Cookie options — centralised so logout uses identical settings
 const cookieOptions = () => ({
@@ -9,6 +10,7 @@ const cookieOptions = () => ({
   secure: process.env.NODE_ENV === "production",
   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
+  path: '/',
 });
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
@@ -46,6 +48,7 @@ export const logout = (req, res) => {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+    path: '/',
   });
   res.json({ success: true, data: null });
 };
