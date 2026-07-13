@@ -6,9 +6,9 @@ import { sendPasswordResetEmail, sendPasswordResetConfirmation } from "../../con
 // Cookie options — centralised so logout uses identical settings
 const cookieOptions = () => ({
   httpOnly: true,
-  secure:   process.env.NODE_ENV === "production",
-  sameSite: "strict",
-  maxAge:   7 * 24 * 60 * 60 * 1000, // 7 days in ms
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
 });
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ export const login = async (req, res, next) => {
 export const logout = (req, res) => {
   res.clearCookie("vs_token", {
     httpOnly: true,
-    secure:   process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
   });
   res.json({ success: true, data: null });
@@ -72,10 +72,10 @@ export const forgotPassword = async (req, res, next) => {
     }
 
     // Generate raw token (sent in URL) and store only the hash
-    const rawToken   = crypto.randomBytes(32).toString("hex");
+    const rawToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    admin.resetToken       = hashedToken;
+    admin.resetToken = hashedToken;
     admin.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await admin.save({ validateBeforeSave: false });
 
@@ -103,7 +103,7 @@ export const resetPassword = async (req, res, next) => {
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const admin = await Admin.findOne({
-      resetToken:       hashedToken,
+      resetToken: hashedToken,
       resetTokenExpiry: { $gt: Date.now() },
     });
 
@@ -112,8 +112,8 @@ export const resetPassword = async (req, res, next) => {
     }
 
     // Update password (pre-save hook hashes it)
-    admin.password        = newPassword;
-    admin.resetToken      = undefined;
+    admin.password = newPassword;
+    admin.resetToken = undefined;
     admin.resetTokenExpiry = undefined;
     await admin.save();
 
