@@ -42,7 +42,8 @@ export const uploadImage = async (req, res, next) => {
 export const deleteImage = async (req, res, next) => {
   try {
     const { publicId } = req.body;
-    if (!publicId) {
+
+    if (!publicId || !String(publicId).trim()) {
       return res.status(400).json({ success: false, message: "publicId is required" });
     }
 

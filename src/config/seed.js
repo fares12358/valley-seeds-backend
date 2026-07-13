@@ -63,6 +63,7 @@ const EN = {
     eyebrow: "Core Values",
     heading: "The Principles That",
     heading_accent: "Guide Every Decision",
+    show_more: "Show All Values",
     values: [
       { name: "Uncompromising Quality",   desc: "Every seed is a promise of a successful harvest. All varieties undergo rigorous field trials before they ever reach the farmer." },
       { name: "Digital Innovation",       desc: "Odoo ERP integration — a core commitment to financial precision, operational clarity, and full transparency." },
@@ -218,6 +219,7 @@ const AR = {
     eyebrow: "قيمنا الجوهرية",
     heading: "المبادئ التي",
     heading_accent: "تُوجّه كل قرار",
+    show_more: "عرض جميع القيم",
     values: [
       { name: "جودة لا تقبل المساومة", desc: "كل بذرة هي وعد بحصاد ناجح. تخضع جميع الأصناف لتجارب حقلية صارمة قبل أن تصل إلى المزارع." },
       { name: "الابتكار الرقمي",       desc: "تكامل نظام Odoo ERP — التزام جوهري بالدقة المالية والوضوح التشغيلي والشفافية الكاملة." },
@@ -319,32 +321,30 @@ const AR = {
   },
 };
 
-// ─── Section keys (order matches content model enum) ─────────────────────────
 const SECTION_KEYS = ["nav","hero","about","whyUs","mission","services","technology","erp","contact","footer"];
 
-// ─── Default settings ─────────────────────────────────────────────────────────
 const DEFAULT_SETTINGS = {
-  brandName:    "Valley Seeds",
-  primaryColor: "#037338",
-  accentColor:  "#96C422",
-  email:        "info@valley-seeds.com",
-  phone:        "+20 128 763 6986",
-  whatsapp:     "+20 128 763 6986",
-  website:      "www.valley-seeds.com",
-  location:     "Cairo, Egypt",
-  socialLinks: { facebook: "", linkedin: "", instagram: "", whatsapp: "https://wa.me/201287636986" },
-  logoUrl:      "",
-  logoWhiteUrl: "",
+  brandName:         "Valley Seeds",
+  primaryColor:      "#037338",
+  accentColor:       "#96C422",
+  email:             "info@valley-seeds.com",
+  phone:             "+20 128 763 6986",
+  whatsapp:          "+20 128 763 6986",
+  website:           "www.valley-seeds.com",
+  location:          "Cairo, Egypt",
+  socialLinks:       { facebook: "", linkedin: "", instagram: "", whatsapp: "https://wa.me/201287636986" },
+  logoUrl:           "",
+  logoWhiteUrl:      "",
+  logoPublicId:      "",
+  logoWhitePublicId: "",
 };
 
-// ─── Main seed function ───────────────────────────────────────────────────────
 const seed = async () => {
   try {
     console.log("[seed] Connecting to MongoDB...");
     await mongoose.connect(process.env.MONGO_URI);
     console.log("[seed] MongoDB connected");
 
-    // 1. Seed content sections
     console.log("[seed] Seeding 10 content sections...");
     for (const key of SECTION_KEYS) {
       await Content.findOneAndUpdate(
@@ -355,7 +355,6 @@ const seed = async () => {
       console.log(`[seed]   ✓ ${key}`);
     }
 
-    // 2. Seed settings
     console.log("[seed] Seeding settings...");
     await Settings.findOneAndUpdate(
       {},
@@ -364,20 +363,18 @@ const seed = async () => {
     );
     console.log("[seed]   ✓ Settings upserted");
 
-    // 3. Seed admin — skip if already exists
     console.log("[seed] Seeding admin account...");
     const adminEmail    = process.env.ADMIN_EMAIL;
     const adminPassword = process.env.ADMIN_PASSWORD;
 
     if (!adminEmail || !adminPassword) {
-      console.warn("[seed]   ! ADMIN_EMAIL or ADMIN_PASSWORD not set in .env — skipping admin creation");
+      console.warn("[seed]   ! ADMIN_EMAIL or ADMIN_PASSWORD not set in .env — skipping");
     } else {
       const existing = await Admin.findOne({ email: adminEmail.toLowerCase() });
       if (existing) {
         console.log("[seed]   ℹ Admin already exists — skipping (password unchanged)");
       } else {
         await Admin.create({ email: adminEmail, password: adminPassword });
-        // pre-save hook in auth.model.js hashes the password automatically
         console.log(`[seed]   ✓ Admin created: ${adminEmail}`);
       }
     }

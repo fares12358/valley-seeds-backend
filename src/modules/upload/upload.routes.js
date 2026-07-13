@@ -5,10 +5,11 @@ import authMiddleware from "../../middlewares/auth.middleware.js";
 
 const storage = multer.memoryStorage();
 
+// gif removed — consistent with frontend accept attribute and avoids large animated files
 const fileFilter = (req, file, cb) => {
-  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
   if (allowed.includes(file.mimetype)) cb(null, true);
-  else cb(new Error("Only JPEG, PNG, WebP, and GIF images are allowed"), false);
+  else cb(new Error("Only JPEG, PNG, and WebP images are allowed"), false);
 };
 
 const upload = multer({

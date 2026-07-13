@@ -2,23 +2,32 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import Admin from "./auth.model.js";
 import { sendPasswordResetEmail, sendPasswordResetConfirmation } from "../../config/email.js";
-import path from "path";
 
-// Cookie options — centralised so logout uses identical settings
+// Simple email format validator — no external dependency needed
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ""));
+
+// Cookie options — centralised so login and logout always use identical attributes.
+// RULE (bugs-manual-fix.txt BUG 6): never hardcode sameSite outside this helper.
 const cookieOptions = () => ({
   httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
+  secure:   process.env.NODE_ENV === "production",
   sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
-  path: '/',
+  maxAge:   7 * 24 * 60 * 60 * 1000,
+  path:     "/",
 });
 
 // ─── POST /api/auth/login ─────────────────────────────────────────────────────
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+
     if (!email || !password) {
       return res.status(400).json({ success: false, message: "Email and password are required" });
+    }
+
+    // Validate email format — return same message to prevent field enumeration
+    if (!isValidEmail(email)) {
+      return res.status(401).json({ success: false, message: "Invalid email or password" });
     }
 
     const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
@@ -43,19 +52,19 @@ export const login = async (req, res, next) => {
 };
 
 // ─── POST /api/auth/logout ────────────────────────────────────────────────────
+// Uses cookieOptions() to ensure clearCookie attributes match Set-Cookie exactly.
 export const logout = (req, res) => {
   res.clearCookie("vs_token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure:   process.env.NODE_ENV === "production",
     sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
-    path: '/',
+    path:     "/",
   });
   res.json({ success: true, data: null });
 };
 
 // ─── GET /api/auth/me ─────────────────────────────────────────────────────────
 export const me = (req, res) => {
-  // req.admin set by authMiddleware — already stripped of sensitive fields
   res.json({ success: true, data: req.admin });
 };
 
@@ -63,8 +72,14 @@ export const me = (req, res) => {
 export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
+
     if (!email) {
       return res.status(400).json({ success: false, message: "Email is required" });
+    }
+
+    // Invalid format — return success anyway (enumeration protection)
+    if (!isValidEmail(email)) {
+      return res.json({ success: true, data: null });
     }
 
     const admin = await Admin.findOne({ email: email.toLowerCase().trim() });
@@ -74,15 +89,17 @@ export const forgotPassword = async (req, res, next) => {
       return res.json({ success: true, data: null });
     }
 
-    // Generate raw token (sent in URL) and store only the hash
-    const rawToken = crypto.randomBytes(32).toString("hex");
+    const rawToken    = crypto.randomBytes(32).toString("hex");
     const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
 
-    admin.resetToken = hashedToken;
+    admin.resetToken       = hashedToken;
     admin.resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
     await admin.save({ validateBeforeSave: false });
 
-    const resetUrl = `${process.env.CLIENT_URL}/dashboard/reset-password?token=${rawToken}`;
+    if (!process.env.CLIENT_URL) {
+      console.error("[auth] CLIENT_URL not set — password reset link will be broken");
+    }
+    const resetUrl = `${process.env.CLIENT_URL || "http://localhost:3000"}/dashboard/reset-password?token=${rawToken}`;
     await sendPasswordResetEmail(admin.email, resetUrl);
 
     res.json({ success: true, data: null });
@@ -95,6 +112,7 @@ export const forgotPassword = async (req, res, next) => {
 export const resetPassword = async (req, res, next) => {
   try {
     const { token, newPassword } = req.body;
+
     if (!token || !newPassword) {
       return res.status(400).json({ success: false, message: "Token and new password are required" });
     }
@@ -102,11 +120,10 @@ export const resetPassword = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Password must be at least 8 characters" });
     }
 
-    // Hash the incoming raw token and compare to stored hash
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const admin = await Admin.findOne({
-      resetToken: hashedToken,
+      resetToken:       hashedToken,
       resetTokenExpiry: { $gt: Date.now() },
     });
 
@@ -114,13 +131,11 @@ export const resetPassword = async (req, res, next) => {
       return res.status(400).json({ success: false, message: "Reset link is invalid or has expired" });
     }
 
-    // Update password (pre-save hook hashes it)
-    admin.password = newPassword;
-    admin.resetToken = undefined;
+    admin.password         = newPassword;
+    admin.resetToken       = undefined;
     admin.resetTokenExpiry = undefined;
     await admin.save();
 
-    // Send confirmation email (non-blocking — don't fail if this errors)
     sendPasswordResetConfirmation(admin.email).catch((err) =>
       console.warn("[auth] Confirmation email failed:", err.message)
     );

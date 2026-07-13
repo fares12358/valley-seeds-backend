@@ -18,6 +18,9 @@ const authMiddleware = async (req, res, next) => {
     req.admin = admin;
     next();
   } catch (err) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[auth] JWT verification failed:", err.message);
+    }
     return res.status(401).json({ success: false, message: "Unauthorized — invalid token" });
   }
 };

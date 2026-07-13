@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import he from "he";
 
 const transporter = nodemailer.createTransport({
   host:   process.env.EMAIL_HOST,
@@ -15,14 +16,22 @@ transporter.verify().catch((err) => {
   console.warn("[email] Transporter verification failed:", err.message);
 });
 
+// ─── Sanitisation helpers ─────────────────────────────────────────────────────
+// esc()        — HTML-encode for safe interpolation into email HTML body
+// safeHeader() — strip newlines from values used in SMTP headers (header injection prevention)
+const esc        = (str) => he.encode(String(str || ""), { useNamedReferences: true });
+const safeHeader = (str) => String(str || "").replace(/[\r\n\t]/g, " ").trim();
+
 // ─── Email 1: Contact form submission → client inbox ─────────────────────────
 export const sendContactEmail = async (submission) => {
-  const subject = submission.subject || "General Inquiry";
+  const subject  = safeHeader(submission.subject || "General Inquiry");
+  const safeName = safeHeader(submission.name);
+
   await transporter.sendMail({
     from:    process.env.EMAIL_FROM,
     to:      process.env.EMAIL_TO,
-    replyTo: submission.email,
-    subject: `New contact from ${submission.name} — ${subject}`,
+    replyTo: submission.email,   // raw email — this is an SMTP header, not HTML
+    subject: `New contact from ${safeName} — ${subject}`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:12px">
         <div style="background:#037338;padding:16px 24px;border-radius:8px;margin-bottom:24px">
@@ -30,16 +39,16 @@ export const sendContactEmail = async (submission) => {
           <p style="color:#96C422;margin:4px 0 0;font-size:14px">Valley Seeds Website</p>
         </div>
         <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
-          <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;width:100px">Name</td><td style="padding:8px 0;font-weight:600;color:#111827">${submission.name}</td></tr>
-          <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Email</td><td style="padding:8px 0;color:#111827"><a href="mailto:${submission.email}" style="color:#037338">${submission.email}</a></td></tr>
-          ${submission.phone ? `<tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Phone</td><td style="padding:8px 0;color:#111827">${submission.phone}</td></tr>` : ""}
-          <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Subject</td><td style="padding:8px 0;color:#111827">${subject}</td></tr>
+          <tr><td style="padding:8px 0;color:#6b7280;font-size:13px;width:100px">Name</td><td style="padding:8px 0;font-weight:600;color:#111827">${esc(submission.name)}</td></tr>
+          <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Email</td><td style="padding:8px 0;color:#111827"><a href="mailto:${esc(submission.email)}" style="color:#037338">${esc(submission.email)}</a></td></tr>
+          ${submission.phone ? `<tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Phone</td><td style="padding:8px 0;color:#111827">${esc(submission.phone)}</td></tr>` : ""}
+          <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Subject</td><td style="padding:8px 0;color:#111827">${esc(subject)}</td></tr>
           <tr><td style="padding:8px 0;color:#6b7280;font-size:13px">Received</td><td style="padding:8px 0;color:#111827">${new Date().toLocaleString("en-EG",{timeZone:"Africa/Cairo"})}</td></tr>
         </table>
         <div style="background:#f9fafb;border-left:4px solid #037338;padding:16px;border-radius:4px;margin-bottom:24px">
-          <p style="margin:0;color:#374151;line-height:1.6;white-space:pre-wrap">${submission.message}</p>
+          <p style="margin:0;color:#374151;line-height:1.6;white-space:pre-wrap">${esc(submission.message)}</p>
         </div>
-        <a href="mailto:${submission.email}?subject=Re: ${subject}" style="display:inline-block;background:#037338;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reply to ${submission.name}</a>
+        <a href="mailto:${esc(submission.email)}?subject=Re: ${esc(subject)}" style="display:inline-block;background:#037338;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600">Reply to ${esc(submission.name)}</a>
       </div>
     `,
   });
